@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式投票應用程式</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 使用 Inter 字體 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 淺灰色背景 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px; /* 圓角 */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1); /* 柔和陰影 */
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        .vote-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #e2e8f0; /* 較淺的背景色 */
+            border-radius: 10px; /* 圓角 */
+            transition: transform 0.2s ease-in-out;
+        }
+        .vote-item:hover {
+            transform: translateY(-3px); /* 懸停效果 */
+        }
+        .vote-button {
+            background-color: #4f46e5; /* 紫色按鈕 */
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .vote-button:hover {
+            background-color: #4338ca; /* 懸停時顏色變深 */
+        }
+        .reset-button {
+            background-color: #ef4444; /* 紅色按鈕 */
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            transition: background-color 0.2s ease-in-out;
+            margin-top: 20px;
+        }
+        .reset-button:hover {
+            background-color: #dc2626; /* 懸停時顏色變深 */
+        }
+        .add-option-button, .set-question-button {
+            background-color: #22c55e; /* 綠色按鈕 */
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .add-option-button:hover, .set-question-button:hover {
+            background-color: #16a34a; /* 懸停時顏色變深 */
+        }
+        input[type="text"] {
+            border: 1px solid #cbd5e1; /* 邊框顏色 */
+            border-radius: 10px;
+            padding: 10px 15px;
+            flex-grow: 1; /* 讓輸入框佔據可用空間 */
+            margin-right: 10px;
+        }
+        .input-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .current-question {
+            font-size: 1.5rem; /* 較大的字體 */
+            font-weight: bold;
+            color: #334155; /* 深灰色 */
+            margin-bottom: 20px;
+            min-height: 30px; /* 確保即使沒有問題也有空間 */
+        }
+        .user-id-display {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 10px;
+            word-break: break-all; /* 防止長 ID 溢出 */
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none; /* 預設隱藏 */
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        .message-box button {
+            background-color: #4f46e5;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-4xl font-bold text-gray-800 mb-4">互動式投票</h1>
+
+        <!-- 題目顯示區塊 -->
+        <div id="currentQuestionDisplay" class="current-question">
+            <!-- 題目將在這裡顯示 -->
+        </div>
+
+        <!-- 設定題目區塊 -->
+        <div class="mb-6 input-group">
+            <input type="text" id="questionInput" placeholder="輸入投票題目" class="flex-grow">
+            <button id="setQuestionButton" class="set-question-button">設定題目</button>
+        </div>
+
+        <!-- 新增選項區塊 -->
+        <div class="mb-6 input-group">
+            <input type="text" id="newOptionInput" placeholder="輸入新的投票選項">
+            <button id="addOptionButton" class="add-option-button">新增選項</button>
+        </div>
+
+        <!-- 投票選項列表 -->
+        <div id="voteOptionsContainer" class="space-y-4">
+            <!-- 投票選項將在這裡動態載入 -->
+        </div>
+
+        <!-- 重設按鈕 -->
+        <button id="resetButton" class="reset-button">重設所有投票</button>
+
+        <!-- 使用者 ID 顯示 -->
+        <div id="userIdDisplay" class="user-id-display"></div>
+    </div>
+
+    <!-- 自定義訊息框 -->
+    <div id="messageBox" class="message-box">
+        <p id="messageText" class="text-lg text-gray-800"></p>
+        <button id="messageBoxOkButton">確定</button>
+    </div>
+
+    <script type="module">
+        // 導入 Firebase 模組
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 獲取 DOM 元素
+        const questionInput = document.getElementById('questionInput');
+        const setQuestionButton = document.getElementById('setQuestionButton');
+        const currentQuestionDisplay = document.getElementById('currentQuestionDisplay');
+        const newOptionInput = document.getElementById('newOptionInput');
+        const addOptionButton = document.getElementById('addOptionButton');
+        const voteOptionsContainer = document.getElementById('voteOptionsContainer');
+        const resetButton = document.getElementById('resetButton');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const messageBoxOkButton = document.getElementById('messageBoxOkButton');
+
+        // 自定義訊息框顯示/隱藏函數
+        function showMessage(message) {
+            messageText.textContent = message;
+            messageBox.style.display = 'flex';
+        }
+
+        function hideMessageBox() {
+            messageBox.style.display = 'none';
+        }
+
+        messageBoxOkButton.addEventListener('click', hideMessageBox);
+
+        // Firebase 初始化
+        // __app_id 和 __firebase_config 是 Canvas 環境提供的全域變數
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        let app;
+        let db;
+        let auth;
+        let userId = '未驗證使用者'; // 預設使用者ID
+        let pollDocRef; // Firestore 文件參考
+
+        // 儲存投票選項和計數的陣列
+        let voteOptions = [];
+        // 儲存投票題目
+        let currentQuestion = "載入中..."; // 預設題目
+
+        // 渲染投票選項
+        function renderVoteOptions() {
+            voteOptionsContainer.innerHTML = ''; // 清空現有內容
+
+            if (voteOptions.length === 0) {
+                voteOptionsContainer.innerHTML = '<p class="text-gray-500">目前沒有投票選項。請新增一個！</p>';
+                return;
+            }
+
+            voteOptions.forEach((option) => {
+                const voteItem = document.createElement('div');
+                voteItem.className = 'vote-item';
+
+                const optionText = document.createElement('span');
+                optionText.className = 'text-lg font-medium text-gray-700';
+                optionText.textContent = option.name;
+
+                const voteCount = document.createElement('span');
+                voteCount.className = 'text-xl font-bold text-indigo-600 ml-4';
+                voteCount.textContent = option.votes;
+
+                const voteButton = document.createElement('button');
+                voteButton.className = 'vote-button';
+                voteButton.textContent = '投票';
+                voteButton.addEventListener('click', async () => {
+                    try {
+                        // 找到要更新的選項索引
+                        const optionIndex = voteOptions.findIndex(o => o.name === option.name);
+                        if (optionIndex > -1) {
+                            // 建立一個新的陣列，並更新指定選項的票數
+                            const updatedOptions = [...voteOptions];
+                            updatedOptions[optionIndex] = { ...updatedOptions[optionIndex], votes: updatedOptions[optionIndex].votes + 1 };
+
+                            // 更新 Firestore 中的文件
+                            await setDoc(pollDocRef, { question: currentQuestion, options: updatedOptions });
+                        }
+                    } catch (error) {
+                        console.error("投票失敗:", error);
+                        showMessage("投票失敗，請稍後再試。");
+                    }
+                });
+
+                voteItem.appendChild(optionText);
+                voteItem.appendChild(voteCount);
+                voteItem.appendChild(voteButton);
+
+                voteOptionsContainer.appendChild(voteItem);
+            });
+        }
+
+        // 渲染題目
+        function renderQuestion() {
+            currentQuestionDisplay.textContent = currentQuestion;
+        }
+
+        // 設定題目功能
+        setQuestionButton.addEventListener('click', async () => {
+            const questionText = questionInput.value.trim();
+            if (questionText) {
+                try {
+                    currentQuestion = questionText; // 先更新本地狀態以提供即時回饋
+                    questionInput.value = ''; // 清空輸入框
+                    renderQuestion(); // 更新顯示
+                    // 更新 Firestore 中的題目，選項保持不變
+                    await setDoc(pollDocRef, { question: currentQuestion, options: voteOptions });
+                } catch (error) {
+                    console.error("設定題目失敗:", error);
+                    showMessage("設定題目失敗，請稍後再試。");
+                }
+            } else {
+                showMessage("請輸入一個投票題目！");
+            }
+        });
+
+        // 新增選項功能
+        addOptionButton.addEventListener('click', async () => {
+            const optionName = newOptionInput.value.trim();
+            if (optionName) {
+                // 檢查是否已存在相同的選項
+                const existingOption = voteOptions.find(option => option.name.toLowerCase() === optionName.toLowerCase());
+                if (existingOption) {
+                    showMessage('此選項已存在！');
+                } else {
+                    try {
+                        const newOption = { name: optionName, votes: 0 };
+                        const updatedOptions = [...voteOptions, newOption]; // 新增選項到陣列
+                        newOptionInput.value = ''; // 清空輸入框
+                        // 更新 Firestore 中的選項陣列
+                        await setDoc(pollDocRef, { question: currentQuestion, options: updatedOptions });
+                    } catch (error) {
+                        console.error("新增選項失敗:", error);
+                        showMessage("新增選項失敗，請稍後再試。");
+                    }
+                }
+            } else {
+                showMessage('請輸入一個投票選項！');
+            }
+        });
+
+        // 重設所有投票功能
+        resetButton.addEventListener('click', async () => {
+            // 顯示確認訊息，並等待使用者點擊按鈕
+            const confirmReset = await new Promise(resolve => {
+                messageText.textContent = '您確定要重設所有投票嗎？這將清除所有選項和計數。';
+                messageBox.innerHTML = ''; // 清空原有內容
+                messageBox.appendChild(messageText);
+
+                const confirmButton = document.createElement('button');
+                confirmButton.textContent = '確定重設';
+                confirmButton.className = 'bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded';
+                confirmButton.onclick = () => {
+                    hideMessageBox();
+                    resolve(true);
+                };
+                const cancelButton = document.createElement('button');
+                cancelButton.textContent = '取消';
+                cancelButton.className = 'bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded ml-2';
+                cancelButton.onclick = () => {
+                    hideMessageBox();
+                    resolve(false);
+                };
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'flex justify-center gap-4';
+                buttonContainer.appendChild(confirmButton);
+                buttonContainer.appendChild(cancelButton);
+                messageBox.appendChild(buttonContainer);
+                messageBox.style.display = 'flex';
+            });
+
+            if (confirmReset) {
+                try {
+                    // 清空選項並重設題目
+                    await setDoc(pollDocRef, { question: "請設定投票題目", options: [] });
+                } catch (error) {
+                    console.error("重設投票失敗:", error);
+                    showMessage("重設投票失敗，請稍後再試。");
+                }
+            }
+        });
+
+
+        // 初始化 Firebase 和 Firestore 監聽
+        window.onload = async () => {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // 處理認證狀態變化
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                    } else {
+                        // 如果沒有使用者，則匿名登入
+                        if (typeof __initial_auth_token !== 'undefined') {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        userId = auth.currentUser?.uid || crypto.randomUUID(); // Fallback for userId
+                    }
+                    userIdDisplay.textContent = `您的使用者 ID: ${userId}`;
+
+                    // 設定 Firestore 文件參考
+                    // 使用公共資料路徑：/artifacts/{appId}/public/data/voting_app/poll
+                    // 這裡的 'poll' 是文件 ID，您可以根據需要更改
+                    pollDocRef = doc(collection(db, `artifacts/${appId}/public/data/voting_app`), 'poll');
+
+                    // 監聽 Firestore 數據變化
+                    onSnapshot(pollDocRef, (docSnapshot) => {
+                        if (docSnapshot.exists()) {
+                            const data = docSnapshot.data();
+                            currentQuestion = data.question || "請設定投票題目";
+                            voteOptions = data.options || [];
+                        } else {
+                            // 如果文件不存在，初始化一個空文件
+                            console.log("投票文件不存在，正在創建...");
+                            setDoc(pollDocRef, { question: "請設定投票題目", options: [] })
+                                .catch(e => console.error("初始化投票文件失敗:", e));
+                            currentQuestion = "請設定投票題目";
+                            voteOptions = [];
+                        }
+                        renderQuestion();
+                        renderVoteOptions();
+                    }, (error) => {
+                        console.error("監聽 Firestore 失敗:", error);
+                        showMessage("載入投票資料失敗，請檢查網路連線。");
+                    });
+                });
+
+            } catch (error) {
+                console.error("Firebase 初始化失敗:", error);
+                showMessage("應用程式初始化失敗，請檢查配置。");
+            }
+        };
+    </script>
+</body>
+</html>
